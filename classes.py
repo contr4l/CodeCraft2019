@@ -1,6 +1,8 @@
+# -*- encoding=utf8 -*-
 from copy import deepcopy
-
-
+from util import PriorityQueue, manhattanDistance
+import time
+from math import exp
 class Judge(object):
     """docstring for Judge"""
 
@@ -27,8 +29,12 @@ class Judge(object):
 
                 [car_id, start, end, speed, planTime] = [int(i) for i in line]
                 self.car_No.append(car_id)
-                self.car_info[car_id] = Car(car_id,
+                if self.plan_info:
+                    self.car_info[car_id] = Car(car_id,
                                             [start, end, speed, planTime], self.plan_info[car_id])
+                else:
+                    self.car_info[car_id] = Car(car_id,
+                                                [start, end, speed, planTime], [0, []])
 
     def convert2list(self, line):
         line.strip()
@@ -82,6 +88,94 @@ class Judge(object):
                 RoadSequence = info[2:]
                 self.time.add(StartTime)
                 self.plan_info[car_id] = [StartTime] + RoadSequence
+
+    def simulate(self):
+        start_time = time.time()
+        self.result = 0  # 系统调度时间
+        self.tick = -1  # 车辆运行时间
+
+        self.active_stack = []  # 存放当前时刻应被处理的车辆编号
+        self.active_road = []  # 存放当前时刻有车的道路编号
+        self.final_stack = []
+        while True:
+            if self.tick >= max(self.time) and not self.active_stack:
+                break
+            self.step()
+        print('''Totol arrange time is {} tick, the program run time is {} s.'''.format(self.tick + 16,
+                                                                                        round(time.time() - start_time,
+                                                                                              2)))
+
+    def step(self, input_cars=None):
+
+        self.tick += 1  # 表往后走一秒
+        # 当前未处理车辆，车到终点后弹出
+        dead_stack = []  # 储存本时刻已经被处理的车辆
+        # 规则一：系统先调度在行驶的车辆，再调度等待上路的车辆
+        if input_cars == None:
+            garage_stack = sorted(self.StartTimeBin.get(self.tick, []))  # 车库里将要上路的车
+        else:
+            garage_stack = input_cars
+        # 规则二：按照车辆ID升序进行调度
+        # 第一步：道路调度，进行一次
+        # print('Arrange Roads...')
+        for road_id in self.road_No:
+            # print('Now processing road No.', road_id)
+            # print(S.road_info[5014].WhichCar())
+            road = self.road_info[road_id]
+            car_list, rev_car_list = road.WhichCar()
+            # print(car_list, rev_car_list)
+            for car_id in car_list:
+                # print(car_id)
+                dead_stack, self.car_info[car_id], signal = road.DriveCar(self.car_info[car_id], dead_stack, self)
+            for car_id in rev_car_list:
+                dead_stack, self.car_info[car_id], signal = road.DriveCar(self.car_info[car_id], dead_stack, self,
+                                                                          reversed=True)
+        # 道路调度后，调度时间+1
+        self.result += 1
+        # 第二步：路口调度，直到所有车辆被标记为final
+        # print('Arrange Cross...')
+        while len(self.active_stack) != len(dead_stack):
+            # if result == 155:
+            #     print(0)
+            handled_signal = 0
+            # 此时意味着车道上的车辆全部处理完了,继续使车库里的车上路
+            for cross_id in self.cross_No:
+                # print('Now processing cross No.', cross_id)
+                # if cross_id == 31:
+                #     print(0)
+                cross = self.cross_info[cross_id]
+                # print('Arrange cross No {}'.format(cross.id))
+                # handled=True表示有车的状态发生变化
+                tmp1 = len(dead_stack)
+                tmp2 = handled_signal
+                dead_stack, handled = cross.crossArrange(dead_stack, self)
+                handled_signal |= handled
+            if len(self.active_stack) != len(dead_stack):
+                assert handled_signal, 'Dead Lock Happened!'
+                self.result += 1  # 每次路口的循环需要调度时间+1
+        # 第三步：车库发车
+        # print('Place Car from garage...')
+        for car_id in garage_stack:
+            # print('Now place car No.', car_id)
+            car = self.car_info[car_id]
+            dead_stack, signal = car.PlaceCar_FromGarage(self, dead_stack)
+            if signal:
+                self.active_stack.append(car.id)
+        self.result += 1
+        # 道路调度完成，此时判断各个车辆是否到达其终点
+        # 若到达终点，从active_stack中剔除，若未到达终点，将其state刷新为wait
+        for car_id in dead_stack:
+            car = self.car_info[car_id]
+            if car.reachFinal(self):
+                # print('No {} car reached final.'.format(car.id))
+                self.active_stack.remove(car_id), self.final_stack.append(car_id)
+            else:
+                car.reflush()
+        # 如果时刻超过了planTime的最大值且没有未到终点的车辆，意味着时间结束
+
+        return True
+
+
 
 
 class Car(object):
@@ -145,7 +239,7 @@ class Car(object):
                     dead_stack.append(self.id)
                     S.road_info[road_id] = road
                     S.car_info[self.id] = self
-                    return dead_stack, S, True
+                    return dead_stack, True
                 else:
                     if j >= tmp:
                         # 找到当前道路能到达的最远的空位置
@@ -158,14 +252,14 @@ class Car(object):
                 dead_stack.append(self.id)
                 S.road_info[road_id] = road
                 S.car_info[self.id] = self
-                return dead_stack, S, True
+                return dead_stack, True
         # print('Fail to place the car.', self.id)
         self.planTime += 1
-        if S.StartTimeBin:
+        if self.planTime in S.StartTimeBin:
             S.StartTimeBin[self.planTime].append(self.id)
         else:
             S.StartTimeBin[self.planTime] = [self.id]
-        return dead_stack, S, False
+        return dead_stack, False
 
     def reachFinal(self, S: Judge):
         # Checked...
@@ -175,6 +269,13 @@ class Car(object):
             return True
         return False
 
+    def __str__(self):
+        string = "(" + str(self.id) + "," + str(self.StartTime)
+        for road_id in self.RoadSequence:
+            # print(road_id)
+            string += "," + str(road_id)
+        string += ")\n"
+        return string
 
 class Road(object):
     def __init__(self, _id, _road_info):
@@ -570,10 +671,10 @@ class Road(object):
                                 S.car_info[car.id] = car
                 if flag == 1:  # 表示未能成功通行，其后的所有车都无法通行。
                     handled = 0
-                    return dead_stack, S, handled
+                    return dead_stack, handled
             else:
                 continue
-        return dead_stack, S, handled
+        return dead_stack, handled
 
     def WhichCar(self):
         # 返回当前道路上所有车辆的编号，按照调度顺序排列
@@ -617,12 +718,12 @@ class Cross(object):
             else:
                 road = S.road_info[road_id]
                 if road.end == self.id:  # 出路口道路
-                    dead_stack, S, tmp = road.passCross(dead_stack, S)
+                    dead_stack, tmp = road.passCross(dead_stack, S)
                 elif road.start == self.id and road.isDuplex:  # 双向车道出路口
                     # print('process rev road, id is {}'.format(road_id))
-                    dead_stack, S, tmp = road.passCross(dead_stack, S, reversed=True)
+                    dead_stack, tmp = road.passCross(dead_stack, S, reversed=True)
             handled |= tmp
-        return dead_stack, S, handled
+        return dead_stack, handled
 
     def get_lane_and_car(self, S):
         for road_id in self.roads:
@@ -632,3 +733,209 @@ class Cross(object):
                 print(road.lane_id())
                 print('Next Road...')
         return 0
+
+
+class Arranger():
+    def __init__(self, judge: Judge):
+        self.judge = judge
+        self.init_cross_position()
+
+    def init_cross_position(self):
+        visited = []
+        self.list = {}
+        self.list[1] = [0, 0]
+        stack = []
+        stack.append([1, 0, 0])
+        while stack:
+            crossid, x, y = stack.pop()
+            cross = self.judge.cross_info[crossid]
+            visited.append(crossid)
+            # print(crossid)
+            for i, road_id in enumerate(cross.roads):
+                if road_id == -1:
+                    continue
+                road = self.judge.road_info[road_id]
+
+                if road.end == crossid:  # get another cross
+                    nextcross = road.start
+                elif road.start == crossid:
+                    nextcross = road.end
+
+                if i == 0:  # north
+                    if nextcross not in visited:
+                        stack.append([nextcross, x, y + 1])
+                        self.list[nextcross] = [x, y + 1]
+                elif i == 1:  # east
+                    if nextcross not in visited:
+                        stack.append([nextcross, x + 1, y])
+                        self.list[nextcross] = [x + 1, y]
+                elif i == 2:  # south
+                    if nextcross not in visited:
+                        stack.append([nextcross, x, y - 1])
+                        self.list[nextcross] = [x, y - 1]
+                elif i == 3:  # west
+                    if nextcross not in visited:
+                        stack.append([nextcross, x - 1, y])
+                        self.list[nextcross] = [x - 1, y]
+
+    def get_load(self, road_id, direction):
+
+        road = self.judge.road_info[road_id]
+        totalcars = 0
+        if direction == 0:
+            for lane in road.lane:
+                totalcars += sum(list(map(lambda x: 0 if x == 0 else 1, lane)))
+            load = totalcars / road.length / road.channel
+        else:
+            for lane in road.lane_rev:
+                totalcars += sum(list(map(lambda x: 0 if x == 0 else 1, lane)))
+            load = totalcars / road.length / road.channel
+        return load
+
+    def get_cost(self, road_id, car):
+        road = self.judge.road_info[road_id]
+        return (road.length / min(road.speed, car.speed) + 2) / (road.channel)
+
+    def can_move(self, time, car):
+        if time < car.planTime:
+            return False
+        for road_id in car.RoadSequence:
+            # print(roadmap.road_list[road_id].get_load())
+            if self.get_load(road_id, 0) > 0.4:
+                return False
+
+        return True
+
+    def h(self, this_cross, to_cross):
+        """
+        :param this_cross:
+        :param to_cross:
+        :return:manhattanDistance of the two crosses
+
+        """
+        this_position = self.list[this_cross]
+        to_position = self.list[to_cross]
+        return manhattanDistance(this_position, to_position)
+
+    def g(self, road_id, car, direction):
+        """
+        The g function
+
+        :param road_id:
+        :param car:
+        :param direction:
+        :return:
+        """
+
+        return self.get_cost(road_id, car) * exp(self.get_load(road_id, direction) * 2)
+
+    def A_star(self, car: Car):
+        """
+        :param car:
+        :return:
+        #calculate the path of the car using A* method
+        """
+        from_id, to_id = car.start, car.end
+        # print(cross_copy,self.cross_list)
+        closeset = []
+        openset = []
+        myPQ = PriorityQueue()
+        start = from_id
+        gcost = {}
+        gcost[start] = 0
+        fcost = {}
+        fcost[start] = self.h(start, to_id)
+        myPQ.push((start, []), fcost[start])
+        while myPQ.isEmpty() == False:
+            cross_id, path = myPQ.pop()
+            closeset.append(cross_id)
+            if cross_id == to_id:  # arrived
+                car.RoadSequence = path
+                return
+            for road_id in self.judge.cross_info[cross_id].roads:
+                if road_id == -1:
+                    continue
+                road = self.judge.road_info[road_id]
+                if road.end == cross_id:
+                    # 逆向行驶
+                    if road.isDuplex == 1:
+                        nextcross = road.start
+                        direction = 1
+                    else:
+                        continue
+                elif road.start == cross_id:
+                    nextcross = road.end
+                    direction = 0
+                    # 正向行驶
+                else:
+                    nextcross = 0
+                    print("the cross don't have the road")
+                cost = self.g(road_id, car, direction)
+
+                if nextcross not in closeset:
+                    if nextcross in openset:
+                        if gcost[cross_id] + cost < gcost[nextcross]:
+                            gcost[nextcross] = gcost[cross_id] + cost
+                            myPQ.push((nextcross, path + [road_id]), gcost[nextcross] + self.h(nextcross, to_id))
+                    else:
+                        openset.append(nextcross)
+                        gcost[nextcross] = gcost[cross_id] + cost
+                        myPQ.push((nextcross, path + [road_id]), gcost[nextcross] + self.h(nextcross, to_id))
+
+    def arrange(self):
+        """
+
+        :return:
+        """
+        car_list = list(self.judge.car_info.values())
+        car_list.sort(key=lambda x: x.speed, reverse=True)
+        # 车从快到慢出发
+
+        mytime = 1
+        count = 0
+        runinglist = []
+
+        start_time = time.time()
+        self.judge.result = 0  # 系统调度时间
+        self.judge.tick = 0  # 车辆运行时间
+
+        self.judge.active_stack = []  # 存放当前时刻应被处理的车辆编号
+        self.judge.active_road = []  # 存放当前时刻有车的道路编号
+        self.judge.final_stack = []
+
+        while car_list:
+
+            car = car_list.pop()
+            # print(car.can_move(roadmap,time))
+            self.A_star(car)
+            if self.can_move(mytime, car):
+                car.StartTime = mytime
+                runinglist.append(car.id)
+
+            else:
+                #
+                if car.planTime > mytime:
+                    count += 1
+                    car_list.insert(-200 * (car.planTime - mytime), car)
+                    # TODO 性能可能有些问题
+                else:
+                    count += 1
+                    car_list.insert(-1000, car)
+            if count == 200 or len(runinglist) >= 50:
+                # time up
+                print(mytime, len(car_list), len(runinglist))
+                count = 0
+                if self.judge.step(runinglist) == False:
+                    break
+                runinglist = []
+                # TODO put car into the
+                mytime += 1
+        print('''Totol arrange time is {} tick, the program run time is {} s.'''.format(self.judge.tick + 16,
+                                                                                        round(time.time() - start_time,
+                                                                                              2)))
+
+    def write_answers(self, answer_path):
+        answer = open(answer_path, 'w')
+        for car in self.judge.car_info.values():
+            answer.writelines(str(car))
+            pass
