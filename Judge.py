@@ -2,7 +2,7 @@
 import sys
 import time
 from classes import Judge, Arranger
-
+from copy import  deepcopy
 
 # if __name__ == '__main__':
 def start(car_file, road_file, cross_file, answer_file):
@@ -18,6 +18,7 @@ def start(car_file, road_file, cross_file, answer_file):
     S.get_cross_info(cross_file)
     S.get_road_info(road_file)
     # S.simulate()
+    S2=deepcopy(S)
     A = Arranger(S)
     A.arrange()
     A.write_answers(answer_file)

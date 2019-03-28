@@ -357,9 +357,12 @@ class Road(object):
 
         # Case1, 若前方有等待行驶的车，自身也不能行驶
         for j in range(self.length - 1, car.road_pos, -1):
-            if lane[car.lane][j] and lane[car.lane][j].state == 'wait':
-                car.state = 'wait'
-                return dead_stack, car, False
+            for i in range(self.channel):
+                if i == car.lane and j == car.road_pos:
+                    break
+                elif lane[i][j] and lane[i][j].state == 'wait':
+                    car.state = 'wait'
+                    return dead_stack, car, False
         # Case2, 同车道有前车
         for i in range(car.road_pos + 1, self.length):
             if lane[car.lane][i] != 0:  # 找到最近的前车
@@ -420,9 +423,6 @@ class Road(object):
             #     print(0)
             car = S.car_info[car_id]
             lane_prev = car.lane
-            deadstack, car, signal = self.DriveCar(car, dead_stack, S, reversed)
-            if signal:
-                continue
             if car.state == 'wait':
                 # 若到达了最后一条路
                 if self.id == car.RoadSequence[-1]:
@@ -810,25 +810,12 @@ class Arranger():
         return True
 
     def h(self, this_cross, to_cross):
-        """
-        :param this_cross:
-        :param to_cross:
-        :return:manhattanDistance of the two crosses
-
-        """
+        # 获得两路口之间的曼哈顿距离
         this_position = self.list[this_cross]
         to_position = self.list[to_cross]
         return manhattanDistance(this_position, to_position)
 
     def g(self, road_id, car, direction):
-        """
-        The g function
-
-        :param road_id:
-        :param car:
-        :param direction:
-        :return:
-        """
 
         return self.get_cost(road_id, car) * exp(self.get_load(road_id, direction) * 2)
 
@@ -895,7 +882,7 @@ class Arranger():
         # 车从快到慢出发
 
         mytime = 1
-        count = 0
+        stopcount = 0
         runinglist = []
 
         start_time = time.time()
@@ -918,16 +905,16 @@ class Arranger():
             else:
                 #
                 if car.planTime > mytime:
-                    count += 1
+                    stopcount += 1
                     car_list.insert(-200 * (car.planTime - mytime), car)
                     # TODO 性能可能有些问题
                 else:
-                    count += 1
+                    stopcount += 1
                     car_list.insert(-1000, car)
-            if count == 200 or len(runinglist) >= 50:
+            if stopcount == 200 or len(runinglist) >= 50:
                 # time up
                 print(mytime, len(car_list), len(runinglist))
-                count = 0
+                stopcount = 0
                 if self.judge.step(runinglist) == False:
                     break
                 runinglist = []

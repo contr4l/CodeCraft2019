@@ -22,7 +22,7 @@ def main():
     logging.info("car_path is %s" % (car_path))
     logging.info("road_path is %s" % (road_path))
     logging.info("cross_path is %s" % (cross_path))
-    logging.info("answer_path is %s" % (answer_path))
+    logging.info("answer_path is %s" % (answer_path  ))
     Judge.start(car_path, road_path, cross_path, answer_path)
 
 

@@ -3,6 +3,9 @@ import time
 from classes import Judge
 
 if __name__ == '__main__':
+    #减少右转
+    #分区
+    #cross
     start_time = time.time()
     S = Judge()
     sys.argv = ['0', '../train1/car.txt', '../train1/road.txt', '../train1/cross.txt', '../train1/answer.txt']
