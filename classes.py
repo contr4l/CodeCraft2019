@@ -420,6 +420,9 @@ class Road(object):
             #     print(0)
             car = S.car_info[car_id]
             lane_prev = car.lane
+            deadstack, car, signal = self.DriveCar(car, dead_stack, S, reversed)
+            if signal:
+                continue
             if car.state == 'wait':
                 # 若到达了最后一条路
                 if self.id == car.RoadSequence[-1]:
