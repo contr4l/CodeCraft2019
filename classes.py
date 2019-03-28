@@ -323,10 +323,13 @@ class Road(object):
         if self.id == car.RoadSequence[-1]:
             #            print('The car {} may reach its final.'.format(car.id))
             for j in range(car.road_pos + 1, self.length):
-                if lane[car.lane][j] and lane[car.lane][j].state == 'wait':
-                    car.state = 'wait'
-                    return dead_stack, car, False
-                elif lane[car.lane][j] and lane[car.lane][j].state == 'final':
+                for i in range(self.channel):
+                    if i == car.lane and j == car.road_pos:
+                        break
+                    if lane[i][j] and lane[i][j].state == 'wait':
+                        car.state = 'wait'
+                        return dead_stack, car, False
+                if lane[car.lane][j] and lane[car.lane][j].state == 'final':
                     lane[car.lane][car.road_pos] = 0
                     car.road_pos = min(car.road_pos + min(self.speed, car.speed), j - 1)
                     lane[car.lane][car.road_pos] = car
@@ -360,7 +363,7 @@ class Road(object):
             for i in range(self.channel):
                 if i == car.lane and j == car.road_pos:
                     break
-                elif lane[i][j] and lane[i][j].state == 'wait':
+                if lane[i][j] and lane[i][j].state == 'wait':
                     car.state = 'wait'
                     return dead_stack, car, False
         # Case2, 同车道有前车
@@ -423,6 +426,9 @@ class Road(object):
             #     print(0)
             car = S.car_info[car_id]
             lane_prev = car.lane
+            deadstack, car, signal = self.DriveCar(car, dead_stack, S, reversed)
+            if signal:
+                continue
             if car.state == 'wait':
                 # 若到达了最后一条路
                 if self.id == car.RoadSequence[-1]:
@@ -810,12 +816,25 @@ class Arranger():
         return True
 
     def h(self, this_cross, to_cross):
-        # 获得两路口之间的曼哈顿距离
+        """
+        :param this_cross:
+        :param to_cross:
+        :return:manhattanDistance of the two crosses
+
+        """
         this_position = self.list[this_cross]
         to_position = self.list[to_cross]
         return manhattanDistance(this_position, to_position)
 
     def g(self, road_id, car, direction):
+        """
+        The g function
+
+        :param road_id:
+        :param car:
+        :param direction:
+        :return:
+        """
 
         return self.get_cost(road_id, car) * exp(self.get_load(road_id, direction) * 2)
 
@@ -836,7 +855,7 @@ class Arranger():
         fcost = {}
         fcost[start] = self.h(start, to_id)
         myPQ.push((start, []), fcost[start])
-        while myPQ.isEmpty() == False:
+        while not myPQ.isEmpty():
             cross_id, path = myPQ.pop()
             closeset.append(cross_id)
             if cross_id == to_id:  # arrived
@@ -882,7 +901,7 @@ class Arranger():
         # 车从快到慢出发
 
         mytime = 1
-        stopcount = 0
+        count = 0
         runinglist = []
 
         start_time = time.time()
@@ -905,22 +924,22 @@ class Arranger():
             else:
                 #
                 if car.planTime > mytime:
-                    stopcount += 1
+                    count += 1
                     car_list.insert(-200 * (car.planTime - mytime), car)
                     # TODO 性能可能有些问题
                 else:
-                    stopcount += 1
+                    count += 1
                     car_list.insert(-1000, car)
-            if stopcount == 200 or len(runinglist) >= 50:
+            if count == 200 or len(runinglist) >= 50:
                 # time up
                 print(mytime, len(car_list), len(runinglist))
-                stopcount = 0
-                if self.judge.step(runinglist) == False:
+                count = 0
+                if not self.judge.step(runinglist):
                     break
                 runinglist = []
                 # TODO put car into the
                 mytime += 1
-        print('''Totol arrange time is {} tick, the program run time is {} s.'''.format(self.judge.tick + 16,
+        print('Totol arrange time is {} tick, the program run time is {} s.'.format(self.judge.tick + 16,
                                                                                         round(time.time() - start_time,
                                                                                               2)))
 
