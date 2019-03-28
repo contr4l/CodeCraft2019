@@ -176,8 +176,6 @@ class Judge(object):
         return True
 
 
-
-
 class Car(object):
     def __init__(self, _id, _car_info, plan_info):
         [start, end, speed, planTime] = _car_info
@@ -297,6 +295,11 @@ class Road(object):
             self.lane_rev = []
         # 说明：对于self.lane而言，最前面的表示靠近start cross的位置，最后的表示靠近end cross的位置
 
+    # def get_direction(self, next_road)
+        # 输入道路输出方向。
+
+
+        
     def DriveCar(self, car: Car, dead_stack, S: Judge, reversed=False):
         # 行驶的函数：区分通过路口和不通过路口
         # 规则：通过路口时，优先占据编号小的车道，不通过路口时，保持现有车道
@@ -321,12 +324,14 @@ class Road(object):
             cross_id = self.start
         # Case 0，马上到达终点
         if self.id == car.RoadSequence[-1]:
-            #            print('The car {} may reach its final.'.format(car.id))
             for j in range(car.road_pos + 1, self.length):
-                if lane[car.lane][j] and lane[car.lane][j].state == 'wait':
-                    car.state = 'wait'
-                    return dead_stack, car, False
-                elif lane[car.lane][j] and lane[car.lane][j].state == 'final':
+                for i in range(self.channel):
+                    if i == car.lane and j == car.road_pos:
+                        break
+                    if lane[i][j] and lane[i][j].state == 'wait':
+                        car.state = 'wait'
+                        return dead_stack, car, False
+                if lane[car.lane][j] and lane[car.lane][j].state == 'final':
                     lane[car.lane][car.road_pos] = 0
                     car.road_pos = min(car.road_pos + min(self.speed, car.speed), j - 1)
                     lane[car.lane][car.road_pos] = car
@@ -357,9 +362,12 @@ class Road(object):
 
         # Case1, 若前方有等待行驶的车，自身也不能行驶
         for j in range(self.length - 1, car.road_pos, -1):
-            if lane[car.lane][j] and lane[car.lane][j].state == 'wait':
-                car.state = 'wait'
-                return dead_stack, car, False
+            for i in range(self.channel):
+                if i == car.lane and j == car.road_pos:
+                    break
+                if lane[i][j] and lane[i][j].state == 'wait':
+                    car.state = 'wait'
+                    return dead_stack, car, False
         # Case2, 同车道有前车
         for i in range(car.road_pos + 1, self.length):
             if lane[car.lane][i] != 0:  # 找到最近的前车
@@ -742,6 +750,7 @@ class Arranger():
     def __init__(self, judge: Judge):
         self.judge = judge
         self.init_cross_position()
+        self.notconflict_car = {} # 对于每辆车，如果其始末连线不交叉，视为notconflict
 
     def init_cross_position(self):
         visited = []
@@ -781,6 +790,50 @@ class Arranger():
                         stack.append([nextcross, x - 1, y])
                         self.list[nextcross] = [x - 1, y]
 
+    def get_notconflict_pairs(self):
+    # 获取两辆车的起点终点坐标，计算交点，如果
+        for car_id in self.judge.car_No:
+            car = self.judge.car_info[car_id]
+            self.notconflict_car[car_id] = self.notconflict_car.get(car_id, [])
+            for car_id_2 in self.judege.car_No:
+                if car_id_2 != car_id:
+                    car2 = self.judge.car_info[car_id_2]
+                    start1, end1 = car.start, car.end
+                    start2, end2 = car2.start, car2.end
+                    [x1, y1] = self.list[start1]
+                    [x2, y2] = self.list[end1]
+                    [x3, y3] = self.list[start2]
+                    [x4, y4] = self.list[end2]
+                    dx1, dy1 = x2-x1, y2-y1
+                    dx2, dy2 = x4-x3, y4-y3
+                    if dx1 == 0 and dx2 == 0:
+                        if x1 != x3 or min(y4, y3) > max(y2, y1) or min(y2, y1) > max(y4, y3):
+                            # 平行或同一直线但不相交
+                            self.notconflict_car[car_id].append(car_id_2)
+                    elif dx1 == 0 and dx2 != 0:
+                        xm = x1
+                        ym = dy2/dx2*(x1-x4)+y4
+                        if ym < min(y1, y2) or ym > max(y1, y2):
+                            # 交点处于外部
+                            self.notconflict_car[car_id].append(car_id_2)
+                    elif dx1 != 0 and dx2 == 0:
+                        xm = x3
+                        ym = dy1/dx1*(x3-x1)+y1
+                        if ym < min(y3, y4) or ym > max(y3, y4):
+                            # 交点处于外部
+                            self.notconflict_car[car_id].append(car_id_2)
+                    else:
+                        if dy2/dx2 == dy1/dx1:
+                            if y3-dy2/dx2*x3 == y1-dy1/dx1*x1:
+                                # 平行
+                                self.notconflict_car[car_id].append(car_id_2)
+                        else:
+                            xm = (x1*dy1+y3*dx2-y1*dx1-x3*dy2)/(dy1-dy2)
+                            ym = dy1/dx1*(xm-x1)+y1
+                            if xm < min(x1, x2, x3, x4) or xm > max(x1, x2, x3, x4) or ym < min(y1, y2, y3, y4) or ym > min(y1, y2, y3, y4):
+                                # 交点位于最大包络矩形外部
+                                self.notconflict_car[car_id].append(car_id_2)
+
     def get_load(self, road_id, direction):
 
         road = self.judge.road_info[road_id]
@@ -806,7 +859,6 @@ class Arranger():
             # print(roadmap.road_list[road_id].get_load())
             if self.get_load(road_id, 0) > 0.4:
                 return False
-
         return True
 
     def h(self, this_cross, to_cross):
@@ -849,7 +901,7 @@ class Arranger():
         fcost = {}
         fcost[start] = self.h(start, to_id)
         myPQ.push((start, []), fcost[start])
-        while myPQ.isEmpty() == False:
+        while not myPQ.isEmpty():
             cross_id, path = myPQ.pop()
             closeset.append(cross_id)
             if cross_id == to_id:  # arrived
@@ -891,7 +943,7 @@ class Arranger():
         :return:
         """
         car_list = list(self.judge.car_info.values())
-        car_list.sort(key=lambda x: x.speed, reverse=True)
+        # car_list.sort(key=lambda x: x.speed, reverse=True)
         # 车从快到慢出发
 
         mytime = 1
@@ -904,10 +956,9 @@ class Arranger():
 
         self.judge.active_stack = []  # 存放当前时刻应被处理的车辆编号
         self.judge.active_road = []  # 存放当前时刻有车的道路编号
-        self.judge.final_stack = []
+        self.judge.final_stack = []  # 存放已经到达终点的车辆
 
         while car_list:
-
             car = car_list.pop()
             # print(car.can_move(roadmap,time))
             self.A_star(car)
@@ -928,12 +979,12 @@ class Arranger():
                 # time up
                 print(mytime, len(car_list), len(runinglist))
                 count = 0
-                if self.judge.step(runinglist) == False:
+                if not self.judge.step(runinglist):
                     break
                 runinglist = []
                 # TODO put car into the
                 mytime += 1
-        print('''Totol arrange time is {} tick, the program run time is {} s.'''.format(self.judge.tick + 16,
+        print('Totol arrange time is {} tick, the program run time is {} s.'.format(self.judge.tick + 16,
                                                                                         round(time.time() - start_time,
                                                                                               2)))
 
