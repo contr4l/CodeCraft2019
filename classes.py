@@ -323,9 +323,12 @@ class Road(object):
         if self.id == car.RoadSequence[-1]:
             #            print('The car {} may reach its final.'.format(car.id))
             for j in range(car.road_pos + 1, self.length):
-                if lane[car.lane][j] and lane[car.lane][j].state == 'wait':
-                    car.state = 'wait'
-                    return dead_stack, car, False
+                for i in range(self.channel):
+                    if i == car.lane and j == car.road_pos:
+                        break
+                    if lane[i][j] and lane[i][j].state == 'wait':
+                        car.state = 'wait'
+                        return dead_stack, car, False
                 elif lane[car.lane][j] and lane[car.lane][j].state == 'final':
                     lane[car.lane][car.road_pos] = 0
                     car.road_pos = min(car.road_pos + min(self.speed, car.speed), j - 1)
