@@ -20,5 +20,6 @@ def start(car_file, road_file, cross_file, answer_file):
     # S.simulate()
     S2=deepcopy(S)
     A = Arranger(S)
-    A.arrange()
+    A.arrange_try_catch()
+    # A.arrange()
     A.write_answers(answer_file)

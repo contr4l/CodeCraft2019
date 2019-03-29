@@ -176,8 +176,6 @@ class Judge(object):
         return True
 
 
-
-
 class Car(object):
     def __init__(self, _id, _car_info, plan_info):
         [start, end, speed, planTime] = _car_info
@@ -407,6 +405,283 @@ class Road(object):
         else:
             return [[s.id if s != 0 else 0 for s in self.lane[j]] for j in range(self.channel)]
 
+    # def passCross(self, dead_stack, S: Judge, reversed=False):
+    #     # 通过路口的逻辑, reversed表示处理该条道路的反向通道
+    #     car_list, rev_car_list = self.WhichCar()
+    #     handled = 0  # 表示有车被调度，用于判断死锁
+    #     if not reversed:
+    #         lane = self.lane
+    #         cross_id = self.end
+    #         todo_list = deepcopy(car_list)
+    #     else:
+    #         assert self.isDuplex == 1, 'Error reversed option for passCross.'
+    #         lane = self.lane_rev
+    #         cross_id = self.start
+    #         todo_list = deepcopy(rev_car_list)
+    #     four_road = S.cross_info[cross_id].roads  # 对于当前路口连接的四条道路
+    #     for car_id in todo_list:
+    #         # if car_id == 18273:
+    #         #     print(0)
+    #         car = S.car_info[car_id]
+    #         lane_prev = car.lane
+    #         deadstack, car, signal = self.DriveCar(car, dead_stack, S, reversed)
+    #         if signal:
+    #             continue
+    #         if car.state == 'wait':
+    #             # 若到达了最后一条路
+    #             if self.id == car.RoadSequence[-1]:
+    #                 dead_stack, S, signal = self.DriveCar(car, dead_stack, S)
+    #                 if signal:
+    #                     handled = 1
+    #                 return dead_stack, S, handled
+    #             next_road_id = car.RoadSequence[car.road_index + 1]
+    #             next_road = S.road_info[next_road_id]
+    #             # 判断要进入的下一条路是进逆车道或是顺车道
+    #             if next_road.start == cross_id:
+    #                 next_lane = next_road.lane
+    #             elif next_road.end == cross_id:
+    #                 assert next_road.isDuplex, "Next road reversed option false..."
+    #                 next_lane = next_road.lane_rev
+    #             direction = (four_road.index(next_road_id) - four_road.index(self.id)) % 4
+    #             '''-----------------------------------Debuged here'''
+    #             # direction含义：1：左拐，2：直行，3：右拐
+    #             # 若前方没有wait状态的车辆，如果是同一道路直行
+    #             # 此调度发生于DriveCar或者passCross问题后的DriveCar中，不需要额外设计情况
+    #             # 考虑需要通过路口的情况
+    #             # 确定下个位置
+    #             v1 = min(car.speed, self.speed)
+    #             v2 = min(car.speed, next_road.speed)
+    #             s1 = self.length - car.road_pos - 1
+    #             s2 = v2 - s1
+    #             # print('s1, s2, v1, v2, car.id, direction', s1, s2, v1, v2, car.id, direction)
+    #             assert s2 > 0, 'passCross get s2 limited!'
+    #             next_pos = s2 - 1
+    #             flag = 0  # 0表示可通行，1表示不可通行，2表示已经通行完毕
+    #             next_state = 1  # next_state为1表示后续所有的位置都被final的车占据了
+    #             if direction == 2:
+    #                 # 直行到下一条路
+    #                 for i in range(next_road.channel):
+    #                     tmp = -1
+    #                     for j in range(next_pos + 1):
+    #                         if next_lane[i][j] != 0:
+    #                             if next_lane[i][j].state == 'wait':
+    #                                 # 表示前进道路上有等待的车，自己也等待
+    #                                 next_state = 0
+    #                                 flag = 1
+    #                                 break
+    #                             else:
+    #                                 tmp = j - 1
+    #                                 break
+    #                         elif next_lane[i][j] == 0:
+    #                             if j >= tmp:
+    #                                 tmp = j  # tmp记录在最小车道上能到达最远的位置
+    #                     if tmp >= 0:
+    #                         next_state = 0
+    #                         lane[car.lane][car.road_pos] = 0
+    #                         next_lane[i][tmp] = car
+    #                         car.lane = i
+    #                         car.road_pos = tmp
+    #                         car.road_index += 1
+    #                         car.state = 'final'
+    #                         dead_stack.append(car.id)
+    #                         S.car_info[car.id] = car
+    #                         flag = 2
+    #                         break
+    #                     if flag:
+    #                         break
+    #                 # 后面所有可能位置全被final车辆占据，只能走到道路最前端，标为final
+    #                 if next_state:
+    #                     handled = 1
+    #                     lane[car.lane][car.road_pos] = 0
+    #                     car.road_pos = self.length - 1
+    #                     lane[car.lane][car.road_pos] = car
+    #                     car.state = 'final'
+    #                     dead_stack.append(car.id)
+    #                     S.car_info[car.id] = car
+    #                     flag = 2
+    #                 # 已经通行完毕（无论过没过路口），本车道全部需要DriveCar
+    #                 if flag == 2:
+    #                     handled = 1
+    #                     #                        print('{} Success pass cross {}, start DriveCar for rest Car.'.format(car.id, cross_id))
+    #                     # 当成功调度路口后，马上调度这条车道上所有的车。
+    #                     #                        print('After Straightpass the cross, Drive all cars in this lane.')
+    #                     for j in range(self.length - 2, -1, -1):
+    #                         if lane[lane_prev][j]:
+    #                             dead_stack, car, signal = self.DriveCar(lane[lane_prev][j], dead_stack, S, reversed)
+    #                             S.car_info[car.id] = car
+    #             elif direction == 3:
+    #                 # 右拐具有最低的优先级，需要考虑针对目标道路左拐和直行的有无冲突，没有则行车，否则等待下次调度
+    #                 straight_road_id = four_road[(four_road.index(next_road_id) - 2) % 4]
+    #                 left_road_id = four_road[(four_road.index(next_road_id) - 1) % 4]
+    #                 if straight_road_id != -1:
+    #                     straight_road = S.road_info[straight_road_id]
+    #                     straight_car_list, straight_rev_car_list = straight_road.WhichCar()
+    #                 if left_road_id != -1:
+    #                     left_road = S.road_info[left_road_id]
+    #                     left_car_list, left_rev_car_list = left_road.WhichCar()
+    #                 # 处理直行道路是否逆行道路
+    #                 if straight_road_id != -1:
+    #                     if straight_road.end != cross_id:
+    #                         straight_todo_list = deepcopy(straight_rev_car_list)
+    #                     else:
+    #                         straight_todo_list = deepcopy(straight_car_list)
+    #                 else:
+    #                     straight_todo_list = []
+    #                 # 处理左拐道路是否逆行道路
+    #                 if left_road_id != -1:
+    #                     if left_road.end != cross_id:
+    #                         left_todo_list = deepcopy(left_rev_car_list)
+    #                     else:
+    #                         left_todo_list = deepcopy(left_car_list)
+    #                 else:
+    #                     left_todo_list = []
+    #                 # 如果直行道上最高优先级的车辆要去目标道路，flag立起来，本车不能通行。
+    #                 for car_id in straight_todo_list:
+    #                     if S.car_info[car_id].state == 'wait' and S.car_info[car_id].RoadSequence[
+    #                         S.car_info[car_id].road_index + 1] == next_road_id:
+    #                         flag = 1
+    #                         break
+    #                     if S.car_info[car_id].state == 'wait' and S.car_info[car_id].RoadSequence[
+    #                         S.car_info[car_id].road_index + 1] != next_road_id:
+    #                         flag = 0
+    #                         break
+    #                 # 如果直行道上没有，如果左转最高优先级的车辆要去目标道路，flag立起来，本车不能通行。
+    #                 if not flag:
+    #                     for car_id in left_todo_list:
+    #                         if S.car_info[car_id].state == 'wait' and S.car_info[car_id].RoadSequence[
+    #                             S.car_info[car_id].road_index + 1] == next_road_id:
+    #                             flag = 1
+    #                             break
+    #                         if S.car_info[car_id].state == 'wait' and S.car_info[car_id].RoadSequence[
+    #                             S.car_info[car_id].road_index + 1] != next_road_id:
+    #                             flag = 0
+    #                             break
+    #                 if flag == 0:  # 可以右拐
+    #                     for i in range(next_road.channel):
+    #                         tmp = -1
+    #                         for j in range(next_pos + 1):
+    #                             if next_lane[i][j] != 0 and next_lane[i][j].state == 'wait':
+    #                                 # 表示前进道路上有等待的车，自己也等待，后续不能开flag=1
+    #                                 next_state = 0
+    #                                 flag = 1
+    #                                 break
+    #                             elif next_lane[i][j] and next_lane[i][j].state == 'final':
+    #                                 tmp = j - 1  # 最近的一辆final的车，如果能走，走到它后面，如果不能，进入下一个车道
+    #                                 break
+    #                             elif next_lane[i][j] == 0:
+    #                                 if j >= tmp:
+    #                                     tmp = j  # tmp记录在最小车道上车辆能到达的最远的位置
+    #                         if tmp >= 0:
+    #                             next_state = 0
+    #                             lane[car.lane][car.road_pos] = 0
+    #                             next_lane[i][tmp] = car
+    #                             car.lane = i
+    #                             car.road_pos = tmp
+    #                             car.road_index += 1
+    #                             car.state = 'final'
+    #                             dead_stack.append(car.id)
+    #                             S.car_info[car.id] = car
+    #                             flag = 2
+    #                             break
+    #                         if flag:
+    #                             break
+    #                 if next_state:
+    #                     handled = 1
+    #                     lane[car.lane][car.road_pos] = 0
+    #                     lane[car.lane][-1] = car
+    #                     car.road_pos = self.length - 1
+    #                     car.state = 'final'
+    #                     dead_stack.append(car.id)
+    #                     S.car_info[car.id] = car
+    #                     flag = 2
+    #                 if flag == 2:
+    #                     handled = 1
+    #                     # print('{} Success pass cross {}, start DriveCar for rest Car.'.format(car.id, cross_id))
+    #                     # 当成功调度路口后，马上调度这条车道上所有的车。
+    #                     # print('After Rightpass the cross, Drive all cars in this lane.')
+    #                     for j in range(self.length - 1, -1, -1):
+    #                         if lane[lane_prev][j] != 0:
+    #                             dead_stack, car, signal = self.DriveCar(lane[lane_prev][j], dead_stack, S, reversed)
+    #                             S.car_info[car.id] = car
+    #             elif direction == 1:
+    #                 next_state = 1
+    #                 flag = 0  # 若flag为0，表示可正常拐弯
+    #                 # 左拐具有比直行低的优先级，需要考虑针对目标道路直行的有无冲突，没有则行车，否则等待下次调度
+    #                 straight_road_id = four_road[(four_road.index(next_road_id) - 2) % 4]
+    #                 if straight_road_id != -1:
+    #                     straight_road = S.road_info[straight_road_id]
+    #                     straight_car_list, straight_rev_car_list = straight_road.WhichCar()
+    #                 # 处理直行道路是否逆行道路
+    #                 if straight_road_id != -1:
+    #                     if straight_road.end != cross_id:
+    #                         straight_todo_list = straight_rev_car_list
+    #                     else:
+    #                         straight_todo_list = straight_car_list
+    #                 else:
+    #                     straight_todo_list = []
+    #                 # 如果直行道上最高优先级的车辆要去目标道路，flag立起来，本车不能通行。
+    #                 for car_id in straight_todo_list:
+    #                     if S.car_info[car_id].state == 'wait' and S.car_info[car_id].RoadSequence[
+    #                         S.car_info[car_id].road_index + 1] == next_road_id:
+    #                         flag = 1
+    #                         break
+    #                     if S.car_info[car_id].state == 'wait' and S.car_info[car_id].RoadSequence[
+    #                         S.car_info[car_id].road_index + 1] != next_road_id:
+    #                         flag = 0
+    #                         break
+    #                 if flag == 0:  # 可以左拐
+    #                     for i in range(next_road.channel):
+    #                         tmp = -1
+    #                         for j in range(next_pos + 1):
+    #                             if next_lane[i][j] != 0 and next_lane[i][j].state == 'wait':
+    #                                 # 表示前进道路上有等待的车，自己也等待，后续不能开，flag=1
+    #                                 next_state = 0
+    #                                 flag = 1
+    #                                 break
+    #                             elif next_lane[i][j] and next_lane[i][j].state == 'final':
+    #                                 tmp = j - 1  # 最近的一辆final的车
+    #                                 break
+    #                             elif next_lane[i][j] == 0:
+    #                                 if j >= tmp:
+    #                                     tmp = j  # tmp记录在最小车道上车辆能到达的最远的位置
+    #                         if tmp >= 0:
+    #                             next_state = 0
+    #                             lane[car.lane][car.road_pos] = 0
+    #                             next_lane[i][tmp] = car
+    #                             car.lane = i
+    #                             car.road_pos = tmp
+    #                             car.road_index += 1
+    #                             car.state = 'final'
+    #                             dead_stack.append(car.id)
+    #                             S.car_info[car.id] = car
+    #                             flag = 2
+    #                             break
+    #                         if flag:
+    #                             break
+    #                 if next_state:
+    #                     handled = 1
+    #                     lane[car.lane][car.road_pos] = 0
+    #                     lane[car.lane][-1] = car
+    #                     car.road_pos = self.length - 1
+    #                     car.state = 'final'
+    #                     dead_stack.append(car.id)
+    #                     S.car_info[car.id] = car
+    #                     flag = 2
+    #                 if flag == 2:
+    #                     handled = 1
+    #                     #                        print('{} Success pass cross {}, start DriveCar for rest Car.'.format(car.id, cross_id))
+    #                     # 当成功调度路口后，马上调度这条车道上所有的车。
+    #                     #                        print('After Leftpass the cross, Drive all cars in this lane.')
+    #                     for j in range(self.length - 1, -1, -1):
+    #                         if lane[lane_prev][j] != 0:
+    #                             dead_stack, car, signal = self.DriveCar(lane[lane_prev][j], dead_stack, S, reversed)
+    #                             S.car_info[car.id] = car
+    #             if flag == 1:  # 表示未能成功通行，其后的所有车都无法通行。
+    #                 handled = 0
+    #                 return dead_stack, handled
+    #         else:
+    #             continue
+    #     return dead_stack, handled
     def passCross(self, dead_stack, S: Judge, reversed=False):
         # 通过路口的逻辑, reversed表示处理该条道路的反向通道
         car_list, rev_car_list = self.WhichCar()
@@ -456,41 +731,59 @@ class Road(object):
                 s1 = self.length - car.road_pos - 1
                 s2 = v2 - s1
                 # print('s1, s2, v1, v2, car.id, direction', s1, s2, v1, v2, car.id, direction)
-                assert s2 > 0, 'passCross get s2 limited!'
+                # assert s2 > 0, 'passCross get s2 limited!'
+                # if self.length - 1 - car.road_pos >= min(next_Road.speed, car.speed):
+                #     # print('No {} car will pass the cross but get S2 restrict'.format(car.id))
+                #     lane[car.lane][car.road_pos] = 0
+                #     car.road_pos = self.length - 1  # 到达车道最前端
+                #     lane[car.lane][car.road_pos] = car
+                #     car.state = 'final'
+                #     dead_stack.append(car.id)
+                #     return dead_stack, True
                 next_pos = s2 - 1
                 flag = 0  # 0表示可通行，1表示不可通行，2表示已经通行完毕
                 next_state = 1  # next_state为1表示后续所有的位置都被final的车占据了
-                if direction == 2:
-                    # 直行到下一条路
-                    for i in range(next_road.channel):
-                        tmp = -1
-                        for j in range(next_pos + 1):
-                            if next_lane[i][j] != 0:
-                                if next_lane[i][j].state == 'wait':
-                                    # 表示前进道路上有等待的车，自己也等待
-                                    next_state = 0
-                                    flag = 1
-                                    break
-                                else:
-                                    tmp = j - 1
-                                    break
-                            elif next_lane[i][j] == 0:
-                                if j >= tmp:
-                                    tmp = j  # tmp记录在最小车道上能到达最远的位置
-                        if tmp >= 0:
-                            next_state = 0
-                            lane[car.lane][car.road_pos] = 0
-                            next_lane[i][tmp] = car
-                            car.lane = i
-                            car.road_pos = tmp
-                            car.road_index += 1
-                            car.state = 'final'
-                            dead_stack.append(car.id)
-                            S.car_info[car.id] = car
-                            flag = 2
-                            break
-                        if flag:
-                            break
+                if direction == 2:  # 直行到下一条路
+                    # s2限制
+                    if s2 <= 0:
+                        # print('No {} car will pass the cross but get S2 restrict'.format(car.id))
+                        lane[car.lane][car.road_pos] = 0
+                        car.road_pos = self.length - 1  # 到达车道最前端
+                        lane[car.lane][car.road_pos] = car
+                        car.state = 'final'
+                        dead_stack.append(car.id)
+                        next_state = 0
+                        flag == 2
+                    else:
+                        for i in range(next_road.channel):
+                            tmp = -1
+                            for j in range(next_pos + 1):
+                                if next_lane[i][j] != 0:
+                                    if next_lane[i][j].state == 'wait':
+                                        # 表示前进道路上有等待的车，自己也等待
+                                        next_state = 0
+                                        flag = 1
+                                        break
+                                    else:
+                                        tmp = j - 1
+                                        break
+                                elif next_lane[i][j] == 0:
+                                    if j >= tmp:
+                                        tmp = j  # tmp记录在最小车道上能到达最远的位置
+                            if tmp >= 0:
+                                next_state = 0
+                                lane[car.lane][car.road_pos] = 0
+                                next_lane[i][tmp] = car
+                                car.lane = i
+                                car.road_pos = tmp
+                                car.road_index += 1
+                                car.state = 'final'
+                                dead_stack.append(car.id)
+                                S.car_info[car.id] = car
+                                flag = 2
+                                break
+                            if flag:
+                                break
                     # 后面所有可能位置全被final车辆占据，只能走到道路最前端，标为final
                     if next_state:
                         handled = 1
@@ -559,34 +852,44 @@ class Road(object):
                                 flag = 0
                                 break
                     if flag == 0:  # 可以右拐
-                        for i in range(next_road.channel):
-                            tmp = -1
-                            for j in range(next_pos + 1):
-                                if next_lane[i][j] != 0 and next_lane[i][j].state == 'wait':
-                                    # 表示前进道路上有等待的车，自己也等待，后续不能开flag=1
+                        if s2 <= 0:
+                            # print('No {} car will pass the cross but get S2 restrict'.format(car.id))
+                            lane[car.lane][car.road_pos] = 0
+                            car.road_pos = self.length - 1  # 到达车道最前端
+                            lane[car.lane][car.road_pos] = car
+                            car.state = 'final'
+                            dead_stack.append(car.id)
+                            next_state = 0
+                            flag == 2
+                        else:
+                            for i in range(next_road.channel):
+                                tmp = -1
+                                for j in range(next_pos + 1):
+                                    if next_lane[i][j] != 0 and next_lane[i][j].state == 'wait':
+                                        # 表示前进道路上有等待的车，自己也等待，后续不能开flag=1
+                                        next_state = 0
+                                        flag = 1
+                                        break
+                                    elif next_lane[i][j] and next_lane[i][j].state == 'final':
+                                        tmp = j - 1  # 最近的一辆final的车，如果能走，走到它后面，如果不能，进入下一个车道
+                                        break
+                                    elif next_lane[i][j] == 0:
+                                        if j >= tmp:
+                                            tmp = j  # tmp记录在最小车道上车辆能到达的最远的位置
+                                if tmp >= 0:
                                     next_state = 0
-                                    flag = 1
+                                    lane[car.lane][car.road_pos] = 0
+                                    next_lane[i][tmp] = car
+                                    car.lane = i
+                                    car.road_pos = tmp
+                                    car.road_index += 1
+                                    car.state = 'final'
+                                    dead_stack.append(car.id)
+                                    S.car_info[car.id] = car
+                                    flag = 2
                                     break
-                                elif next_lane[i][j] and next_lane[i][j].state == 'final':
-                                    tmp = j - 1  # 最近的一辆final的车，如果能走，走到它后面，如果不能，进入下一个车道
+                                if flag:
                                     break
-                                elif next_lane[i][j] == 0:
-                                    if j >= tmp:
-                                        tmp = j  # tmp记录在最小车道上车辆能到达的最远的位置
-                            if tmp >= 0:
-                                next_state = 0
-                                lane[car.lane][car.road_pos] = 0
-                                next_lane[i][tmp] = car
-                                car.lane = i
-                                car.road_pos = tmp
-                                car.road_index += 1
-                                car.state = 'final'
-                                dead_stack.append(car.id)
-                                S.car_info[car.id] = car
-                                flag = 2
-                                break
-                            if flag:
-                                break
                     if next_state:
                         handled = 1
                         lane[car.lane][car.road_pos] = 0
@@ -632,34 +935,44 @@ class Road(object):
                             flag = 0
                             break
                     if flag == 0:  # 可以左拐
-                        for i in range(next_road.channel):
-                            tmp = -1
-                            for j in range(next_pos + 1):
-                                if next_lane[i][j] != 0 and next_lane[i][j].state == 'wait':
-                                    # 表示前进道路上有等待的车，自己也等待，后续不能开，flag=1
+                        if s2 <= 0:
+                            # print('No {} car will pass the cross but get S2 restrict'.format(car.id))
+                            lane[car.lane][car.road_pos] = 0
+                            car.road_pos = self.length - 1  # 到达车道最前端
+                            lane[car.lane][car.road_pos] = car
+                            car.state = 'final'
+                            dead_stack.append(car.id)
+                            next_state = 0
+                            flag == 2
+                        else:
+                            for i in range(next_road.channel):
+                                tmp = -1
+                                for j in range(next_pos + 1):
+                                    if next_lane[i][j] != 0 and next_lane[i][j].state == 'wait':
+                                        # 表示前进道路上有等待的车，自己也等待，后续不能开，flag=1
+                                        next_state = 0
+                                        flag = 1
+                                        break
+                                    elif next_lane[i][j] and next_lane[i][j].state == 'final':
+                                        tmp = j - 1  # 最近的一辆final的车
+                                        break
+                                    elif next_lane[i][j] == 0:
+                                        if j >= tmp:
+                                            tmp = j  # tmp记录在最小车道上车辆能到达的最远的位置
+                                if tmp >= 0:
                                     next_state = 0
-                                    flag = 1
+                                    lane[car.lane][car.road_pos] = 0
+                                    next_lane[i][tmp] = car
+                                    car.lane = i
+                                    car.road_pos = tmp
+                                    car.road_index += 1
+                                    car.state = 'final'
+                                    dead_stack.append(car.id)
+                                    S.car_info[car.id] = car
+                                    flag = 2
                                     break
-                                elif next_lane[i][j] and next_lane[i][j].state == 'final':
-                                    tmp = j - 1  # 最近的一辆final的车
+                                if flag:
                                     break
-                                elif next_lane[i][j] == 0:
-                                    if j >= tmp:
-                                        tmp = j  # tmp记录在最小车道上车辆能到达的最远的位置
-                            if tmp >= 0:
-                                next_state = 0
-                                lane[car.lane][car.road_pos] = 0
-                                next_lane[i][tmp] = car
-                                car.lane = i
-                                car.road_pos = tmp
-                                car.road_index += 1
-                                car.state = 'final'
-                                dead_stack.append(car.id)
-                                S.car_info[car.id] = car
-                                flag = 2
-                                break
-                            if flag:
-                                break
                     if next_state:
                         handled = 1
                         lane[car.lane][car.road_pos] = 0
@@ -684,7 +997,6 @@ class Road(object):
             else:
                 continue
         return dead_stack, handled
-
     def WhichCar(self):
         # 返回当前道路上所有车辆的编号，按照调度顺序排列
         car_list = []
@@ -750,6 +1062,8 @@ class Arranger():
         self.init_cross_position()
 
     def get_turn_direction(self, cross_id, this_road, next_road):
+        if this_road == 0:
+            return 2
         four_road = self.judge.cross_info[cross_id].roads
         direction = (four_road.index(next_road) - four_road.index(this_road)) % 4
         return direction
@@ -808,43 +1122,70 @@ class Arranger():
 
     def get_cost(self, road_id, car):
         road = self.judge.road_info[road_id]
-        return (road.length / min(road.speed, car.speed) + 2) / (road.channel)
+        cost = (road.length / min(road.speed, car.speed) + 2)
+
+        return cost
+
+    def get_direction(self, from_cross_id, road_id):
+        road = self.judge.road_info[road_id]
+        if road.end == from_cross_id:
+            # 逆向行驶
+            if road.isDuplex == 1:
+                nextcross = road.start
+                direction = 1
+            else:
+                assert "wrong way"
+        elif road.start == from_cross_id:
+            nextcross = road.end
+            direction = 0
+
+        return nextcross, direction
 
     def can_move(self, time, car):
         if time < car.planTime:
             return False
+        nextcross = car.start
         for road_id in car.RoadSequence:
             # print(roadmap.road_list[road_id].get_load())
-            if self.get_load(road_id, 0) > 0.4:
+            nextcross, direction = self.get_direction(nextcross, road_id)
+            if self.get_load(road_id, direction) > 0.5:
                 return False
 
         return True
 
     def h(self, this_cross, to_cross):
-        """
-        :param this_cross:
-        :param to_cross:
-        :return:manhattanDistance of the two crosses
 
-        """
         this_position = self.list[this_cross]
         to_position = self.list[to_cross]
         return manhattanDistance(this_position, to_position) * 4
 
+    def g_only_cost(self, road_id, car, direction, turn_direction):
+        return self.get_cost(road_id, car)
+
     def g(self, road_id, car, direction, turn_direction):
+        return self.get_cost(road_id, car) * exp(self.get_load(road_id, direction) * 5)
 
-
-        return self.get_cost(road_id, car) * exp(self.get_load(road_id, direction) * 2)
-
-    def g_turn_left(self, road_id, car, direction, turn_direction):
+    def g_turn_left(self, last_road, road_id, car, direction, turn_direction):
         # direction含义：1：左拐，2：直行，3：右拐
         if turn_direction == 1:
-            turn_cost = 10
+            turn_cost = 2
         elif turn_direction == 2:
             turn_cost = 0
         elif turn_direction == 3:
-            turn_cost = 40
-        return self.get_cost(road_id, car) * exp(self.get_load(road_id, direction) * 2) + turn_cost
+            turn_cost = 10
+        cost = self.get_cost(road_id, car) * exp(self.get_load(road_id, direction) * 5)
+        if last_road == 0:
+            return cost
+        else:
+            last = self.judge.road_info[last_road]
+            this = self.judge.road_info[road_id]
+            from math import ceil
+            cost *= ceil(last.channel / this.channel)
+            if this.channel == 1:
+                cost *= 3
+
+            return cost
+
 
     def A_star(self, car: Car, gfunc, hfunc):
         """
@@ -853,6 +1194,7 @@ class Arranger():
         #calculate the path of the car using A* method
         """
         from_id, to_id = car.start, car.end
+        car.RoadSequence = []
         # print(cross_copy,self.cross_list)
         closeset = []
         openset = []
@@ -868,6 +1210,8 @@ class Arranger():
             closeset.append(cross_id)
             if path:
                 last_road = path[-1]
+            else:
+                last_road = 0
             if cross_id == to_id:  # arrived
                 car.RoadSequence = path
                 return
@@ -876,9 +1220,9 @@ class Arranger():
 
                 if road_id == -1:
                     continue
-                if path:
-                    if last_road == road_id:
-                        continue
+
+                if last_road == road_id:
+                    continue
                 road = self.judge.road_info[road_id]
                 if road.end == cross_id:
                     # 逆向行驶
@@ -894,13 +1238,10 @@ class Arranger():
                 else:
                     nextcross = 0
                     print("the cross don't have the road")
-                if path:
 
-                    turn_direction = self.get_turn_direction(cross_id, last_road, road_id)
-                else:
-                    turn_direction = 2
-                # print(turn_direction)
-                cost = gfunc(road_id, car, direction, turn_direction)
+                turn_direction = self.get_turn_direction(cross_id, last_road, road_id)
+
+                cost = gfunc(last_road, road_id, car, direction, turn_direction)
 
                 if nextcross not in closeset:
                     if nextcross in openset:
@@ -963,6 +1304,67 @@ class Arranger():
         print('Totol arrange time is {} tick, the program run time is {} s.'.format(self.judge.tick + 16,
                                                                                         round(time.time() - start_time,
                                                                                               2)))
+
+    def arrange_try_catch(self):
+        car_list = list(self.judge.car_info.keys())
+        car_list.sort(key=lambda x: self.judge.car_info[x].speed, reverse=True)
+        # 车从快到慢出发
+
+        mytime = 0
+        count = 0
+        runinglist = []
+
+        start_time = time.time()
+        self.judge.result = 0  # 系统调度时间
+        self.judge.tick = 0  # 车辆运行时间
+
+        self.judge.active_stack = []  # 存放当前时刻应被处理的车辆编号
+        self.judge.active_road = []  # 存放当前时刻有车的道路编号
+        self.judge.final_stack = []
+        max_per_tick = 50
+        baklist = []
+        baklist.append([mytime, deepcopy(self.judge), car_list.copy()])
+        while car_list:
+            car_id = car_list.pop()
+            car = self.judge.car_info[car_id]
+            self.A_star(car, self.g_turn_left, self.h)
+            if self.can_move(mytime, car):
+                car.StartTime = mytime
+                runinglist.append(car_id)
+
+            else:
+                #
+                if car.planTime > mytime:
+                    count += 1
+                    car_list.insert(-200 * (car.planTime - mytime), car_id)
+                    # TODO 性能可能有些问题
+                else:
+                    count += 1
+                    car_list.insert(-1000, car_id)
+            if count == 200 or len(runinglist) >= max_per_tick:
+                # time up
+                print(mytime, len(car_list), len(runinglist))
+
+                try:
+                    self.judge.step(runinglist)
+
+                except:
+                    print("***********deadlock*************")
+                    max_per_tick /= 2
+                    mytime, self.judge, car_list = baklist.pop()
+                    self.judge.step([])
+                finally:
+                    mytime += 1
+                    count = 0
+                    runinglist = []
+                if mytime % 30 == 0:
+                    baklist.append([mytime, deepcopy(self.judge), car_list.copy()])
+                    max_per_tick = 50
+                # TODO put car into the
+
+        print('Totol arrange time is {} tick, the program run time is {} s.'.format(self.judge.tick + 16,
+                                                                                    round(time.time() - start_time,
+                                                                                          2)))
 
     def write_answers(self, answer_path):
         answer = open(answer_path, 'w')
