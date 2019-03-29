@@ -114,7 +114,7 @@ class Judge(object):
         if input_cars == None:
             garage_stack = sorted(self.StartTimeBin.get(self.tick, []))  # 车库里将要上路的车
         else:
-            garage_stack = input_cars
+            garage_stack = sorted(input_cars)
         # 规则二：按照车辆ID升序进行调度
         # 第一步：道路调度，进行一次
         # print('Arrange Roads...')
@@ -749,6 +749,11 @@ class Arranger():
         self.judge = judge
         self.init_cross_position()
 
+    def get_turn_direction(self, cross_id, this_road, next_road):
+        four_road = self.judge.cross_info[cross_id].roads
+        direction = (four_road.index(next_road) - four_road.index(this_road)) % 4
+        return direction
+
     def init_cross_position(self):
         visited = []
         self.list = {}
@@ -824,21 +829,24 @@ class Arranger():
         """
         this_position = self.list[this_cross]
         to_position = self.list[to_cross]
-        return manhattanDistance(this_position, to_position)
+        return manhattanDistance(this_position, to_position) * 4
 
-    def g(self, road_id, car, direction):
-        """
-        The g function
+    def g(self, road_id, car, direction, turn_direction):
 
-        :param road_id:
-        :param car:
-        :param direction:
-        :return:
-        """
 
         return self.get_cost(road_id, car) * exp(self.get_load(road_id, direction) * 2)
 
-    def A_star(self, car: Car):
+    def g_turn_left(self, road_id, car, direction, turn_direction):
+        # direction含义：1：左拐，2：直行，3：右拐
+        if turn_direction == 1:
+            turn_cost = 10
+        elif turn_direction == 2:
+            turn_cost = 0
+        elif turn_direction == 3:
+            turn_cost = 40
+        return self.get_cost(road_id, car) * exp(self.get_load(road_id, direction) * 2) + turn_cost
+
+    def A_star(self, car: Car, gfunc, hfunc):
         """
         :param car:
         :return:
@@ -853,17 +861,24 @@ class Arranger():
         gcost = {}
         gcost[start] = 0
         fcost = {}
-        fcost[start] = self.h(start, to_id)
+        fcost[start] = hfunc(start, to_id)
         myPQ.push((start, []), fcost[start])
         while not myPQ.isEmpty():
             cross_id, path = myPQ.pop()
             closeset.append(cross_id)
+            if path:
+                last_road = path[-1]
             if cross_id == to_id:  # arrived
                 car.RoadSequence = path
                 return
+
             for road_id in self.judge.cross_info[cross_id].roads:
+
                 if road_id == -1:
                     continue
+                if path:
+                    if last_road == road_id:
+                        continue
                 road = self.judge.road_info[road_id]
                 if road.end == cross_id:
                     # 逆向行驶
@@ -879,17 +894,23 @@ class Arranger():
                 else:
                     nextcross = 0
                     print("the cross don't have the road")
-                cost = self.g(road_id, car, direction)
+                if path:
+
+                    turn_direction = self.get_turn_direction(cross_id, last_road, road_id)
+                else:
+                    turn_direction = 2
+                # print(turn_direction)
+                cost = gfunc(road_id, car, direction, turn_direction)
 
                 if nextcross not in closeset:
                     if nextcross in openset:
                         if gcost[cross_id] + cost < gcost[nextcross]:
                             gcost[nextcross] = gcost[cross_id] + cost
-                            myPQ.push((nextcross, path + [road_id]), gcost[nextcross] + self.h(nextcross, to_id))
+                            myPQ.push((nextcross, path + [road_id]), gcost[nextcross] + hfunc(nextcross, to_id))
                     else:
                         openset.append(nextcross)
                         gcost[nextcross] = gcost[cross_id] + cost
-                        myPQ.push((nextcross, path + [road_id]), gcost[nextcross] + self.h(nextcross, to_id))
+                        myPQ.push((nextcross, path + [road_id]), gcost[nextcross] + hfunc(nextcross, to_id))
 
     def arrange(self):
         """
@@ -916,7 +937,7 @@ class Arranger():
 
             car = car_list.pop()
             # print(car.can_move(roadmap,time))
-            self.A_star(car)
+            self.A_star(car, self.g_turn_left, self.h)
             if self.can_move(mytime, car):
                 car.StartTime = mytime
                 runinglist.append(car.id)
