@@ -1035,6 +1035,7 @@ class Cross(object):
         handled = 0
         for road_id in self.roads:
             if road_id == -1:
+                tmp = 0
                 continue
             else:
                 road = S.road_info[road_id]
@@ -1071,9 +1072,10 @@ class Arranger():
     def init_cross_position(self):
         visited = []
         self.list = {}
-        self.list[1] = [0, 0]
+        initcross = list(self.judge.cross_info.keys())[0]
+        self.list[initcross] = [0, 0]
         stack = []
-        stack.append([1, 0, 0])
+        stack.append([initcross, 0, 0])
         while stack:
             crossid, x, y = stack.pop()
             cross = self.judge.cross_info[crossid]
@@ -1365,6 +1367,38 @@ class Arranger():
         print('Totol arrange time is {} tick, the program run time is {} s.'.format(self.judge.tick + 16,
                                                                                     round(time.time() - start_time,
                                                                                           2)))
+
+    def Method4(self):
+        car_list = list(self.judge.car_info.keys())
+        # Method4: 按照notconflict_pairs形成car_list#
+        car_list.sort(key=lambda x: x.planTime, reverse=True)
+        car_list2 = []
+        carno_list2 = []
+        set_stack = []
+        while car_list:
+            car1 = car_list.pop()
+            set1 = self.notconflict_car[car1.id]
+            tmp = set1
+            set_stack.append(set1)
+            car_list2.append(car1)
+            carno_list2.append(car1.id)
+            while set_stack:
+                try:
+                    car2_id = tmp.pop()
+                    if car2_id in carno_list2:
+                        continue
+                    car_list2.append(self.judge.car_info[car2_id])
+                    carno_list2.append(car2_id)
+                    car_list.remove(self.judge.car_info[car2_id])
+                    set2 = self.notconflict_car[car2_id]
+                    tmp = set2 & set1
+                    set_stack.append(tmp)
+                    set2 = set1
+                except Exception:
+                    tmp = set_stack.pop()
+        car_list = car_list2[::-1]
+
+    # ++++++++++++++++++++#
 
     def write_answers(self, answer_path):
         answer = open(answer_path, 'w')
